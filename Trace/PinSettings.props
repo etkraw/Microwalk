@@ -2,7 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros">
-    <PinPath>C:\Tool\pin-3.6-97554-g31f0a167d-msvc-windows</PinPath>
+    <PinPath>C:\pin\pin-3.7-97619-g0d0c92f4f-msvc-windows</PinPath>
   </PropertyGroup>
   <PropertyGroup />
   <ItemDefinitionGroup />
