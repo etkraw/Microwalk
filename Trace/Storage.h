@@ -7,6 +7,7 @@ Contains structs to store the trace data.
 #define ENTRY_BUFFER_SIZE 16384
 
 
+
 /* INCLUDES */
 #include "pin.H"
 #include <iostream>
@@ -90,15 +91,20 @@ private:
 
 public:
 
+	//This keeps track of the depth of the call stack, for use in recursion detection
+	INT64 _callDepth = 0;
+
+
     // Creates a new trace logger.
     // -> filename: The path prefix of the output file. Existing files are overwritten.
     TraceLogger(string filenamePrefix)
     {
         // Remember prefix
         _outputFilenamePrefix = filenamePrefix;
-
+		
+		_callDepth = 0;
         // Set trace prefix mode
-        TestcaseStart(0);
+        TestcaseStart(0); //commented out, as pin registers may not be claimed at this time
     }
 
     // Frees resources.
@@ -202,6 +208,7 @@ public:
 
         // Remember new testcase ID
         _testcaseId = testcaseId;
+		_callDepth = 0; //reset call depth
 
         // Open file for writing
         _outputFileStream.exceptions(ofstream::failbit | ofstream::badbit);
@@ -242,23 +249,54 @@ public:
     }
 
     // Creates a new MemoryRead entry.
-    static TraceEntry* InsertMemoryReadEntry(TraceEntry *nextEntry, ADDRINT instructionAddress, ADDRINT memoryAddress)
+    static TraceEntry* InsertMemoryReadEntry(TraceEntry *nextEntry, ADDRINT instructionAddress, ADDRINT memoryAddress, INT64 *depth, int limit)
     {
-        // Create entry
-        nextEntry->Type = TraceEntryTypes::MemoryRead;
-        nextEntry->InstructionAddress = instructionAddress;
-        nextEntry->MemoryAddress = memoryAddress;
-        return ++nextEntry;
-    }
+		if (depth == NULL) //only instrument main thread
+			return nextEntry;
+
+		if (limit == -1) { //normal mode of operation, no recursion detection
+			// Create entry
+			nextEntry->Type = TraceEntryTypes::MemoryRead;
+			nextEntry->InstructionAddress = instructionAddress;
+			nextEntry->MemoryAddress = memoryAddress;
+			return ++nextEntry;
+		}
+
+		if (*depth < limit) { //we are detecting recursion, and none is occuring
+			// Create entry
+			nextEntry->Type = TraceEntryTypes::MemoryRead;
+			nextEntry->InstructionAddress = instructionAddress;
+			nextEntry->MemoryAddress = memoryAddress;
+			return ++nextEntry;
+		}
+
+		return nextEntry; //unaltered, return value since it is reccuring
+	}
 
     // Creates a new MemoryWrite entry.
-    static TraceEntry* InsertMemoryWriteEntry(TraceEntry *nextEntry, ADDRINT instructionAddress, ADDRINT memoryAddress)
+    static TraceEntry* InsertMemoryWriteEntry(TraceEntry *nextEntry, ADDRINT instructionAddress, ADDRINT memoryAddress, INT64 *depth, int limit)
     {
-        // Create entry
-        nextEntry->Type = TraceEntryTypes::MemoryWrite;
-        nextEntry->InstructionAddress = instructionAddress;
-        nextEntry->MemoryAddress = memoryAddress;
-        return ++nextEntry;
+		if (depth == NULL) //only instrument main thread
+			return nextEntry;
+
+		if (limit == -1) { //normal mode of operation, no recursion detection
+			// Create entry
+			nextEntry->Type = TraceEntryTypes::MemoryWrite;
+			nextEntry->InstructionAddress = instructionAddress;
+			nextEntry->MemoryAddress = memoryAddress;
+			return ++nextEntry;
+		}
+
+		if (*depth < limit) { //we are detecting recursion, and none is occuring
+			// Create entry
+			nextEntry->Type = TraceEntryTypes::MemoryWrite;
+			nextEntry->InstructionAddress = instructionAddress;
+			nextEntry->MemoryAddress = memoryAddress;
+			return ++nextEntry;
+		}
+
+		return nextEntry; //unaltered, return value since it is reccuring
+
     }
 
     // Creates a new AllocSizeParameter entry.
@@ -302,34 +340,79 @@ public:
 
     // Creates a new Branch entry.
     // type: 0 for jumps, 1 for call and 2 for ret.
-    static TraceEntry* InsertBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, ADDRINT targetAddress, BOOL flag, UINT32 type)
+    static TraceEntry* InsertBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, ADDRINT targetAddress, BOOL flag, UINT32 type, INT64 *depth, int limit)
     {
-        // Create entry
-        nextEntry->Type = TraceEntryTypes::Branch;
-        nextEntry->InstructionAddress = sourceAddress;
-        nextEntry->MemoryAddress = targetAddress;
-        nextEntry->Flag = static_cast<UINT8>((type << 1) | (flag == 0 ? 0 : 1));
-        return ++nextEntry;
+		UINT8 branchType = (static_cast<UINT8>((type << 1) | (flag == 0 ? 0 : 1))) >> 1;
+
+
+		if (depth == NULL) //only instrument main thread
+			return nextEntry;
+
+		if (branchType == 1) //call
+			(*depth)++;
+		else if (branchType == 2) //ret
+			(*depth)--;
+
+		//std::cerr << "depth is: " << hex << *depth << std::endl;
+
+
+		//std::cerr << "the value of limit is: " << hex << limit << std::endl;
+
+		if (limit == -1){ //normal mode of operation, no recursion detection
+			// Create entry
+			nextEntry->Type = TraceEntryTypes::Branch;
+			nextEntry->InstructionAddress = sourceAddress;
+			nextEntry->MemoryAddress = targetAddress;
+			nextEntry->Flag = static_cast<UINT8>((type << 1) | (flag == 0 ? 0 : 1));
+			return ++nextEntry;
+		}
+		if (*depth < limit) { //we are detecting recursion, and none is occuring
+			// Create entry
+			nextEntry->Type = TraceEntryTypes::Branch;
+			nextEntry->InstructionAddress = sourceAddress;
+			nextEntry->MemoryAddress = targetAddress;
+			nextEntry->Flag = static_cast<UINT8>((type << 1) | (flag == 0 ? 0 : 1));
+			return ++nextEntry;
+		}
+
+		return nextEntry; //unaltered, return value since it is reccuring
     }
 
     // Creates a new "ret" Branch entry.
-    static TraceEntry* InsertRetBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, CONTEXT *contextAfterRet)
+    static TraceEntry* InsertRetBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, CONTEXT *contextAfterRet, INT64 *depth, int limit)
     {
         // Create entry
         ADDRINT retAddress;
         PIN_GetContextRegval(contextAfterRet, REG_INST_PTR, reinterpret_cast<UINT8 *>(&retAddress));
-        return InsertBranchEntry(nextEntry, sourceAddress, retAddress, true, 2);
+        return InsertBranchEntry(nextEntry, sourceAddress, retAddress, true, 2, depth, limit);
         return ++nextEntry;
     }
 
     // Creates a new StackPointerWrite entry.
-    static TraceEntry* InsertStackPointerWriteEntry(TraceEntry *nextEntry, ADDRINT instructionAddress, ADDRINT stackPointerValue)
+    static TraceEntry* InsertStackPointerWriteEntry(TraceEntry *nextEntry, ADDRINT instructionAddress, ADDRINT stackPointerValue, INT64 *depth, int limit)
     {
-        // Create entry
-        nextEntry->Type = TraceEntryTypes::StackPointerWrite;
-        nextEntry->InstructionAddress = instructionAddress;
-        nextEntry->MemoryAddress = stackPointerValue;
-        return ++nextEntry;
+		if (depth == NULL) //only instrument main thread
+			return nextEntry;
+
+		if (limit == -1) { //normal mode of operation, no recursion detection
+		// Create entry
+			nextEntry->Type = TraceEntryTypes::StackPointerWrite;
+			nextEntry->InstructionAddress = instructionAddress;
+			nextEntry->MemoryAddress = stackPointerValue;
+			return ++nextEntry;
+		}
+
+		if (*depth < limit) { //we are detecting recursion, and none is occuring
+		// Create entry
+			nextEntry->Type = TraceEntryTypes::StackPointerWrite;
+			nextEntry->InstructionAddress = instructionAddress;
+			nextEntry->MemoryAddress = stackPointerValue;
+			return ++nextEntry;
+		}
+
+		return nextEntry; //unaltered, return value since it is reccuring
+
+
     }
 };
 

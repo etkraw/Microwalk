@@ -22,6 +22,8 @@ KNOB<string> KnobInterestingImageList(KNOB_MODE_WRITEONCE, "pintool", "i", ".exe
 // The desired CPU feature level.
 KNOB<int> KnobCpuFeatureLevel(KNOB_MODE_WRITEONCE, "pintool", "c", "0", "specify desired CPU model: 0 = Default, 1 = Pentium3, 2 = Merom, 3 = Westmere, 4 = Ivybridge (your own CPU should form a superset of the selected option)");
 
+KNOB<int> KnobRecursionCallDepth(KNOB_MODE_WRITEONCE, "pintool", "b", "-1", "reduce large file bloat w/ recursion detection. Set max call depth");
+
 // Constant random number generator value.
 // Magic default value is 0xBADBADBADBADBAD (Pin does not provide an API to check whether parameter is actually in the command line).
 KNOB<unsigned long long> KnobFixedRandomNumbers(KNOB_MODE_WRITEONCE, "pintool", "r", "841534158063459245", "set constant output for RDRAND instruction");
@@ -37,6 +39,11 @@ vector<string> _interestingImages;
 
 // The thread local storage key for the trace logger objects.
 TLS_KEY _traceLoggerTlsKey;
+
+// Additional REG's added for recursion detection
+// The current value of _callDepth in TraceLogger instance
+REG _currentCallDepthReg;
+//REG _userSpecificedCallDepthReg;
 
 // The next writable entry buffer position (per thread).
 REG _nextBufferEntryReg;
@@ -86,6 +93,11 @@ int main(int argc, char *argv[])
         cerr << KNOB_BASE::StringKnobSummary() << endl;
         return -1;
     }
+	//cerr << KNOB_BASE::StringKnobSummary() << endl;
+	//int maximums = KnobRecursionCallDepth.Value();
+
+	cerr << "NOTE: the value of limit is : " << hex << KnobRecursionCallDepth.Value() << endl;
+	cerr << "NOTE: the value of limit is : " << hex << KnobRecursionCallDepth.Value() << endl;
 
     // Split list of interesting images
     stringstream interestingImagesStringStream(KnobInterestingImageList);
@@ -101,6 +113,10 @@ int main(int argc, char *argv[])
     _traceLoggerTlsKey = PIN_CreateThreadDataKey(0);
     _nextBufferEntryReg = PIN_ClaimToolRegister();
     _entryBufferEndReg = PIN_ClaimToolRegister();
+	//additions for recursion detection
+	_currentCallDepthReg = PIN_ClaimToolRegister();
+	//_userSpecificedCallDepthReg = PIN_ClaimToolRegister();
+
 
     // Reserve tool registers for CPUID modification
     _cpuIdEaxInputReg = PIN_ClaimToolRegister();
@@ -192,6 +208,8 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
             IARG_REG_VALUE, _nextBufferEntryReg,
             IARG_INST_PTR,
             IARG_REG_VALUE, REG_STACK_PTR,
+			IARG_REG_VALUE, _currentCallDepthReg,
+			IARG_UINT32, KnobRecursionCallDepth.Value(),
             IARG_RETURN_REGS, _nextBufferEntryReg,
             IARG_END);
         BBL_InsertIfCall(bbl, IPOINT_BEFORE, AFUNPTR(TraceLogger::CheckBufferFull),
@@ -271,6 +289,9 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_BRANCH_TARGET_ADDR,
                     IARG_BOOL, 1,
                     IARG_UINT32, 1,
+					IARG_REG_VALUE, _currentCallDepthReg,
+					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
                 INS_InsertIfCall(ins, IPOINT_BEFORE, AFUNPTR(TraceLogger::CheckBufferFull),
@@ -296,6 +317,9 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_BRANCH_TARGET_ADDR,
                     IARG_BRANCH_TAKEN,
                     IARG_UINT32, 0,
+					IARG_REG_VALUE, _currentCallDepthReg,
+					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
                 INS_InsertIfCall(ins, IPOINT_BEFORE, AFUNPTR(TraceLogger::CheckBufferFull),
@@ -320,6 +344,9 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_REG_VALUE, _nextBufferEntryReg,
                     IARG_INST_PTR,
                     IARG_CONTEXT,
+					IARG_REG_VALUE, _currentCallDepthReg,
+					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
                 INS_InsertIfCall(ins, IPOINT_TAKEN_BRANCH, AFUNPTR(TraceLogger::CheckBufferFull),
@@ -350,6 +377,8 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_REG_VALUE, _nextBufferEntryReg,
                     IARG_INST_PTR,
                     IARG_REG_VALUE, REG_STACK_PTR,
+					IARG_REG_VALUE, _currentCallDepthReg,
+					IARG_UINT32, KnobRecursionCallDepth.Value(),
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
                 INS_InsertIfCall(ins, pos, AFUNPTR(TraceLogger::CheckBufferFull),
@@ -383,6 +412,9 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_REG_VALUE, _nextBufferEntryReg,
                     IARG_INST_PTR,
                     IARG_MEMORYREAD_EA,
+					IARG_REG_VALUE, _currentCallDepthReg,
+					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
                 INS_InsertIfCall(ins, IPOINT_BEFORE, AFUNPTR(TraceLogger::CheckBufferFull),
@@ -408,6 +440,9 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_REG_VALUE, _nextBufferEntryReg,
                     IARG_INST_PTR,
                     IARG_MEMORYREAD2_EA,
+					IARG_REG_VALUE, _currentCallDepthReg,
+					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
                 INS_InsertIfCall(ins, IPOINT_BEFORE, AFUNPTR(TraceLogger::CheckBufferFull),
@@ -432,6 +467,9 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_REG_VALUE, _nextBufferEntryReg,
                     IARG_INST_PTR,
                     IARG_MEMORYWRITE_EA,
+					IARG_REG_VALUE, _currentCallDepthReg,
+					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
                 INS_InsertIfCall(ins, IPOINT_BEFORE, AFUNPTR(TraceLogger::CheckBufferFull),
@@ -465,12 +503,19 @@ VOID ThreadStart(THREADID tid, CONTEXT *ctxt, INT32 flags, VOID *v)
         // Initialize entry buffer pointers
         PIN_SetContextReg(ctxt, _nextBufferEntryReg, reinterpret_cast<ADDRINT>(traceLogger->Begin()));
         PIN_SetContextReg(ctxt, _entryBufferEndReg, reinterpret_cast<ADDRINT>(traceLogger->End()));
+		// Additions for recursion detection 
+		PIN_SetContextReg(ctxt, _currentCallDepthReg, reinterpret_cast<ADDRINT>(&traceLogger->_callDepth));
+		//PIN_SetContextReg(ctxt, _userSpecificedCallDepthReg, reinterpret_cast<ADDRINT>(&(KnobCpuFeatureLevel.Value())));
+
     }
     else
     {
         // Set entry buffer pointers as null pointers
         PIN_SetContextReg(ctxt, _nextBufferEntryReg, NULL);
         PIN_SetContextReg(ctxt, _entryBufferEndReg, NULL);
+		PIN_SetContextReg(ctxt, _currentCallDepthReg, NULL);
+		//PIN_SetContextRegval(ctxt, _userSpecificedCallDepthReg, NULL);
+
     }
 }
 
@@ -635,6 +680,7 @@ TraceEntry *TestcaseStart(ADDRINT newTestcaseId, THREADID tid)
     // Get trace logger object and set the new testcase ID
     TraceLogger *traceLogger = static_cast<TraceLogger *>(PIN_GetThreadData(_traceLoggerTlsKey, tid));
     traceLogger->TestcaseStart(static_cast<int>(newTestcaseId));
+	cerr << "Starting a new testcase..." << endl;
     return traceLogger->Begin();
 }
 
@@ -644,6 +690,7 @@ TraceEntry *TestcaseEnd(TraceEntry *nextEntry, THREADID tid)
     // Get trace logger object and set the new testcase ID
     TraceLogger *traceLogger = static_cast<TraceLogger *>(PIN_GetThreadData(_traceLoggerTlsKey, tid));
     traceLogger->TestcaseEnd(nextEntry);
+	cerr << "Ending a testcase..." << endl;
     return traceLogger->Begin();
 }
 

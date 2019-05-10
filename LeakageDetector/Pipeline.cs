@@ -302,7 +302,7 @@ namespace LeakageDetector
         /// <param name="randomizationDetectionMultiplier">Determines whether randomization shall be detected, and sets the used testcase multiplier.</param>
         /// <param name="keepTraces">Determines whether preprocessed trace data shall be kept on disk.</param>
         /// <param name="granularity">The comparison granularity of memory addresses in byte. Must be a power of 2.</param>
-        public void Start(string wrapper, string library, bool fuzz, int randomTestcaseLength, int randomTestcaseAmount, int emulatedCpuModel, int randomizationDetectionMultiplier, bool keepTraces, uint granularity, ulong rdrand)
+        public void Start(string wrapper, string library, bool fuzz, int randomTestcaseLength, int randomTestcaseAmount, int emulatedCpuModel, int randomizationDetectionMultiplier, bool keepTraces, uint granularity, ulong rdrand, int limit)
         {
             // Check granularity
             if(granularity == 0 || (granularity & (granularity - 1)) != 0)
@@ -324,7 +324,7 @@ namespace LeakageDetector
                 Program.Log("Starting Pin tool process...\n", Program.LogLevel.Info);
                 ProcessStartInfo pinToolProcessStartInfo = new ProcessStartInfo
                 {
-                    Arguments = $"-t \"{Path.Combine(Environment.CurrentDirectory, "Trace.dll")}\" -o {Path.Combine(_traceDirectory, "testcase")} -r {rdrand} -c {emulatedCpuModel} -i {library} -- {wrapper} 2",
+                    Arguments = $"-t \"{Path.Combine(Environment.CurrentDirectory, "Trace.dll")}\" -b {limit} -o {Path.Combine(_traceDirectory, "testcase")} -r {rdrand} -c {emulatedCpuModel} -i {library} -- {wrapper} 2",
                     FileName = PinPath,
                     WorkingDirectory = _traceDirectory,
                     UseShellExecute = false,
@@ -332,6 +332,8 @@ namespace LeakageDetector
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
+
+
                 pinToolProcessStartInfo.Environment["Path"] += ";" + Path.GetDirectoryName(wrapper);
                 _pinToolProcess = Process.Start(pinToolProcessStartInfo);
 

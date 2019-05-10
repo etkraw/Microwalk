@@ -72,5 +72,8 @@ namespace LeakageDetector
 
         [Option('x', "rdrand-emulation", Default = 841534158063459245UL, HelpText = "Specify the constant value to be returned by RDRAND instruction, which will be used to override hardware TRNG. Default is 0xBADBADBADBADBAD, which means no override.", Required = false)]
         public ulong RDRAND { get; set; }
+
+        [Option('b',"call-depth-limit", Default = -1, HelpText = "Specify the maximum call stack depth (for limiting trace bloat).", Required = false)]
+        public int Limit { get; set; }
     }
 }

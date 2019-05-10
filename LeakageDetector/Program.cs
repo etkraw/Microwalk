@@ -44,7 +44,7 @@ namespace LeakageDetector
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
             Pipeline pipeline = new Pipeline(opts.WorkDirectory, opts.ResultDirectory, opts.TraceDirectory, opts.AnalysisMode);
-            pipeline.Start(opts.Program, opts.Library, !opts.DisableFuzzing, opts.RandomTestcaseLength, opts.RandomTestcaseAmount, opts.EmulatedCpuModel, opts.RandomizationDetectionMultiplier, opts.KeepTraces, opts.Granularity, opts.RDRAND);
+            pipeline.Start(opts.Program, opts.Library, !opts.DisableFuzzing, opts.RandomTestcaseLength, opts.RandomTestcaseAmount, opts.EmulatedCpuModel, opts.RandomizationDetectionMultiplier, opts.KeepTraces, opts.Granularity, opts.RDRAND, opts.Limit);
             stopwatch.Stop();
 
             // Print program run time
