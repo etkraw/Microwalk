@@ -30,7 +30,7 @@ KNOB<unsigned long long> KnobFixedRandomNumbers(KNOB_MODE_WRITEONCE, "pintool", 
 bool _emulateCpuModel = true;
 
 // The emulated CPU.
-static cpuid_model_t *_emulatedCpuModelInfo = nullptr;
+static cpuid_model_t *_emulatedCpuModelInfo = NULL; //nullptr;
 
 // The names of interesting images, parsed from the command line option.
 vector<string> _interestingImages;
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
     }
 
     // Check if constant random numbers are desired
-    if(KnobFixedRandomNumbers.Value() != 0xBADBADBADBADBAD)
+    if(KnobFixedRandomNumbers.Value() != 0xBADBADBADBADBADULL)
     {
         _useFixedRandomNumber = true;
         _fixedRandomNumber = KnobFixedRandomNumbers.Value();
@@ -170,14 +170,19 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
     {
         // Before instrumentation check first whether we are in an interesting image
         // TODO this skips branches from uninteresting images to interesting images -> relevant?
-        ImageData *img = nullptr;
-        for(ImageData *i : _images)
+        ImageData *img = NULL;//nullptr;
+        //for(ImageData *i : _images)
+	//begin porting change to replace above line
+	ImageData *i;
+	for (unsigned long idi = 0; idi < _images.size(); idi++) {
+	    i = _images[idi];
             if(i->ContainsBasicBlock(bbl))
             {
                 img = i;
                 break;
             }
-        if(img == nullptr)
+	} //added for porting change! end porting change
+        if(img == NULL)//nullptr)
         {
             // Should not happen
             cerr << "Error: Basic block " << hex << BBL_Address(bbl) << " in unknown image instrumented" << endl;
@@ -470,8 +475,8 @@ VOID ThreadStart(THREADID tid, CONTEXT *ctxt, INT32 flags, VOID *v)
     else
     {
         // Set entry buffer pointers as null pointers
-        PIN_SetContextReg(ctxt, _nextBufferEntryReg, NULL);
-        PIN_SetContextReg(ctxt, _entryBufferEndReg, NULL);
+        PIN_SetContextReg(ctxt, _nextBufferEntryReg,(ADDRINT) NULL);
+        PIN_SetContextReg(ctxt, _entryBufferEndReg, (ADDRINT) NULL);
     }
 }
 
@@ -486,8 +491,23 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
     TraceLogger *traceLogger = static_cast<TraceLogger *>(PIN_GetThreadData(_traceLoggerTlsKey, tid));
     traceLogger->WriteBufferToFile(reinterpret_cast<TraceEntry *>(PIN_GetContextReg(ctxt, _nextBufferEntryReg)));
     delete traceLogger;
-    PIN_SetThreadData(_traceLoggerTlsKey, nullptr, tid);
+    PIN_SetThreadData(_traceLoggerTlsKey, NULL, tid);  //nullptr, tid);
 }
+
+class InstrImgLambdaPort
+{
+	public:
+		static string imageNameLower;
+		InstrImgLambdaPort(){}
+		static size_t LambdaReplacement(string interestingImageName){
+			return imageNameLower.find(interestingImageName);
+		}
+};
+
+//string InstrImgLambdaPort(string interestingImageName) {
+	
+//	return imageNameLower.find(interestingImageName) != string::npos;
+//} 
 
 // [Callback] Instruments the memory allocation/deallocation functions.
 // TODO instrument malloc() and free() non Windows-specific
@@ -499,7 +519,13 @@ VOID InstrumentImage(IMG img, VOID *v)
     // Check whether image is interesting (its name appears in the image name list passed over the command line)
     string imageNameLower = imageName;
     tolower(imageNameLower);
-    INT8 interesting = (find_if(_interestingImages.begin(), _interestingImages.end(), [&](string &interestingImageName) { return imageNameLower.find(interestingImageName) != string::npos; }) != _interestingImages.end()) ? 1 : 0;
+	
+    InstrImgLambdaPort::imageNameLower = imageNameLower; //set static class member
+
+    INT8 interesting = (find_if(_interestingImages.begin(), _interestingImages.end(), 
+	InstrImgLambdaPort::LambdaReplacement
+	//[&](string &interestingImageName) { return imageNameLower.find(interestingImageName) != string::npos; }
+	) != _interestingImages.end()) ? 1 : 0;
 
     // Retrieve image memory offsets
     UINT64 imageStart = IMG_LowAddress(img);
@@ -609,7 +635,7 @@ VOID InstrumentImage(IMG img, VOID *v)
         // Trace returned address
         RTN_InsertCall(mallocRtn, IPOINT_AFTER, AFUNPTR(TraceLogger::InsertAllocAddressReturnEntry),
             IARG_REG_VALUE, _nextBufferEntryReg,
-            IARG_REG_VALUE, REG_RAX,
+            IARG_REG_VALUE, REG_EAX,//REG_RAX,
             IARG_RETURN_REGS, _nextBufferEntryReg,
             IARG_END);
         RTN_InsertCall(mallocRtn, IPOINT_AFTER, AFUNPTR(CheckBufferAndStore),

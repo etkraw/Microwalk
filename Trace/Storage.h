@@ -16,9 +16,12 @@ Contains structs to store the trace data.
 
 /* TYPES */
 
+// As of porting, c++11 not compatiable with pin3 on linux, so old style enum required:
+
 
 // The different types of trace entries.
-enum struct TraceEntryTypes : UINT32
+//enum struct TraceEntryTypes //: UINT32
+enum TraceEntryTypes
 {
     // A memory read access.
     MemoryRead = 1,
@@ -69,7 +72,7 @@ struct TraceEntry
     UINT64 Size;
 };
 #pragma pack(pop)
-static_assert(sizeof(TraceEntry) == 4 + 1 + 3 + 8 + 8 + 8, "Wrong size of TraceEntry struct");
+//assert(sizeof(TraceEntry) == 4 + 1 + 3 + 8 + 8 + 8);//, "Wrong size of TraceEntry struct");
 
 // Provides functions to write trace buffer contents into a log file.
 class TraceLogger
@@ -86,7 +89,7 @@ private:
 
     // The current testcase ID.
     // Testcase #0 is the prefix.
-    int _testcaseId = -1;
+    int _testcaseId;// = -1; //porting requried reverting to before c++11
 
 public:
 
@@ -94,6 +97,7 @@ public:
     // -> filename: The path prefix of the output file. Existing files are overwritten.
     TraceLogger(string filenamePrefix)
     {
+	_testcaseId = -1;
         // Remember prefix
         _outputFilenamePrefix = filenamePrefix;
 
@@ -205,7 +209,10 @@ public:
 
         // Open file for writing
         _outputFileStream.exceptions(ofstream::failbit | ofstream::badbit);
-        string filename = static_cast<ostringstream &>(ostringstream() << _outputFilenamePrefix << "_" << dec << _testcaseId << ".trace").str();
+	ostringstream oss;
+	oss << _outputFilenamePrefix << "_" << dec << _testcaseId << ".trace";
+	string filename = oss.str();
+        //string filename = static_cast<ostringstream &>(ostringstream() << _outputFilenamePrefix << "_" << dec << _testcaseId << ".trace").str();
         _outputFileStream.open(filename.c_str(), ofstream::out | ofstream::trunc /*| ofstream::binary*/);
         if(!_outputFileStream)
         {
@@ -245,7 +252,7 @@ public:
     static TraceEntry* InsertMemoryReadEntry(TraceEntry *nextEntry, ADDRINT instructionAddress, ADDRINT memoryAddress)
     {
         // Create entry
-        nextEntry->Type = TraceEntryTypes::MemoryRead;
+        nextEntry->Type = MemoryRead;//TraceEntryTypes::MemoryRead;
         nextEntry->InstructionAddress = instructionAddress;
         nextEntry->MemoryAddress = memoryAddress;
         return ++nextEntry;
@@ -255,7 +262,7 @@ public:
     static TraceEntry* InsertMemoryWriteEntry(TraceEntry *nextEntry, ADDRINT instructionAddress, ADDRINT memoryAddress)
     {
         // Create entry
-        nextEntry->Type = TraceEntryTypes::MemoryWrite;
+        nextEntry->Type = MemoryWrite;//TraceEntryTypes::MemoryWrite;
         nextEntry->InstructionAddress = instructionAddress;
         nextEntry->MemoryAddress = memoryAddress;
         return ++nextEntry;
@@ -269,7 +276,7 @@ public:
             return nextEntry;
 
         // Create entry
-        nextEntry->Type = TraceEntryTypes::AllocSizeParameter;
+        nextEntry->Type = AllocSizeParameter;//TraceEntryTypes::AllocSizeParameter;
         nextEntry->Size = size;
         return ++nextEntry;
     }
@@ -282,7 +289,7 @@ public:
             return nextEntry;
 
         // Create entry
-        nextEntry->Type = TraceEntryTypes::AllocAddressReturn;
+        nextEntry->Type = AllocAddressReturn;//TraceEntryTypes::AllocAddressReturn;
         nextEntry->MemoryAddress = memoryAddress;
         return ++nextEntry;
     }
@@ -295,7 +302,7 @@ public:
             return nextEntry;
 
         // Create entry
-        nextEntry->Type = TraceEntryTypes::FreeAddressParameter;
+        nextEntry->Type = FreeAddressParameter;//TraceEntryTypes::FreeAddressParameter;
         nextEntry->MemoryAddress = memoryAddress;
         return ++nextEntry;
     }
@@ -305,7 +312,7 @@ public:
     static TraceEntry* InsertBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, ADDRINT targetAddress, BOOL flag, UINT32 type)
     {
         // Create entry
-        nextEntry->Type = TraceEntryTypes::Branch;
+        nextEntry->Type = Branch;//TraceEntryTypes::Branch;
         nextEntry->InstructionAddress = sourceAddress;
         nextEntry->MemoryAddress = targetAddress;
         nextEntry->Flag = static_cast<UINT8>((type << 1) | (flag == 0 ? 0 : 1));
@@ -326,7 +333,7 @@ public:
     static TraceEntry* InsertStackPointerWriteEntry(TraceEntry *nextEntry, ADDRINT stackPointerValue)
     {
         // Create entry
-        nextEntry->Type = TraceEntryTypes::StackPointerWrite;
+        nextEntry->Type = StackPointerWrite;//TraceEntryTypes::StackPointerWrite;
         nextEntry->MemoryAddress = stackPointerValue;
         return ++nextEntry;
     }
