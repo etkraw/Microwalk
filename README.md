@@ -77,6 +77,9 @@ LeakageDetector.exe command [optional-parameters] mandatory-parameters
 
 A documentation of the different modes can be found in the next section.
 
+### Preventing trace bloat for recursive functions
+Sometimes recursive functions will bloat the trace to a point where files balloon in size and become too large to perform leakage detection on. In this case, use the `-b` command line parameter detailed below. In normal operation (when this parameter is not entered) all calls, returns, memory accesses, etc. are tracked by the pintool. This parameter stops the tool tracking/recording these when the call stack grows beyond a certain size.
+
 ## Command line parameters
 The program supports the following commands:
 
@@ -100,12 +103,14 @@ The program supports the following commands:
   - `-k`: Keep pre processed trace files (else they are deleted automatically to save disk space)
   - `-g num`: Set the memory address analysis granularity to `num` bytes (e.g. 64 to analyze cache line level leakages)
   - `-x num`: Set the output of the `rdrand` instruction to `num`. Allows to suppress randomization that uses the `rdrand` instruction.
+  - `-b num`: Set the maximum call stack depth that is recorded to `num` to prevent trace bloat when during recusive calls. Ignore this to not limit the depth.
 - `dump`: Convert a pre processed trace file into text format
   - Mandatory 1: The pre processed trace file to be dumped.
   - `-o file`: The name of the output text file (else the trace will be dumped to `stdin`)
   - `-c addr`: Dump all call traces for instruction `addr`
   - `-r`: Print relative addresses (e.g. `crypto.dll:Encrypt+3F2`) instead of absolute ones (e.g. `crypto.dll+4033F2`)
   - `-m file1 file2 ...`: Use the given linker MAP files to resolve function addresses to names.
+
   
 ## License
 *MicroWalk* is provided under the MIT license; please consult the LICENSE file for further information.
