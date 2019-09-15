@@ -340,7 +340,7 @@ public:
 
     // Creates a new Branch entry.
     // type: 0 for jumps, 1 for call and 2 for ret.
-    static TraceEntry* InsertBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, ADDRINT targetAddress, BOOL flag, UINT32 type, INT64 *depth, int limit)
+    static TraceEntry* InsertBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, ADDRINT targetAddress, BOOL flag, UINT32 type, INT64 *depth, int limit, int testID)
     {
 		UINT8 branchType = (static_cast<UINT8>((type << 1) | (flag == 0 ? 0 : 1))) >> 1;
 
@@ -358,7 +358,7 @@ public:
 
 		//std::cerr << "the value of limit is: " << hex << limit << std::endl;
 
-		if (limit == -1){ //normal mode of operation, no recursion detection
+		if (limit == -1 || testID == 0){ //normal mode of operation or prefix mode, no recursion detection
 			// Create entry
 			nextEntry->Type = TraceEntryTypes::Branch;
 			nextEntry->InstructionAddress = sourceAddress;
@@ -379,12 +379,12 @@ public:
     }
 
     // Creates a new "ret" Branch entry.
-    static TraceEntry* InsertRetBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, CONTEXT *contextAfterRet, INT64 *depth, int limit)
+    static TraceEntry* InsertRetBranchEntry(TraceEntry *nextEntry, ADDRINT sourceAddress, CONTEXT *contextAfterRet, INT64 *depth, int limit, int testID)
     {
         // Create entry
         ADDRINT retAddress;
         PIN_GetContextRegval(contextAfterRet, REG_INST_PTR, reinterpret_cast<UINT8 *>(&retAddress));
-        return InsertBranchEntry(nextEntry, sourceAddress, retAddress, true, 2, depth, limit);
+        return InsertBranchEntry(nextEntry, sourceAddress, retAddress, true, 2, depth, limit, testID);
         return ++nextEntry;
     }
 

@@ -34,6 +34,9 @@ bool _emulateCpuModel = true;
 // The emulated CPU.
 static cpuid_model_t *_emulatedCpuModelInfo = nullptr;
 
+// The current testcase ID
+static int _currentTestID = 0;
+
 // The names of interesting images, parsed from the command line option.
 vector<string> _interestingImages;
 
@@ -291,6 +294,7 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_UINT32, 1,
 					IARG_REG_VALUE, _currentCallDepthReg,
 					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					IARG_UINT32, _currentTestID,
 					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
@@ -319,6 +323,7 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_UINT32, 0,
 					IARG_REG_VALUE, _currentCallDepthReg,
 					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					IARG_UINT32, _currentTestID,
 					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
@@ -346,6 +351,7 @@ VOID InstrumentTrace(TRACE trace, VOID *v)
                     IARG_CONTEXT,
 					IARG_REG_VALUE, _currentCallDepthReg,
 					IARG_UINT32, KnobRecursionCallDepth.Value(),
+					IARG_UINT32, _currentTestID,
 					//IARG_REG_VALUE, _userSpecificedCallDepthReg,
                     IARG_RETURN_REGS, _nextBufferEntryReg,
                     IARG_END);
@@ -677,6 +683,7 @@ TraceEntry *CheckBufferAndStore(TraceEntry *nextEntry, TraceEntry *entryBufferEn
 // Handles the beginning of a testcase.
 TraceEntry *TestcaseStart(ADDRINT newTestcaseId, THREADID tid)
 {
+	_currentTestID = static_cast<int>(newTestcaseId);
     // Get trace logger object and set the new testcase ID
     TraceLogger *traceLogger = static_cast<TraceLogger *>(PIN_GetThreadData(_traceLoggerTlsKey, tid));
     traceLogger->TestcaseStart(static_cast<int>(newTestcaseId));

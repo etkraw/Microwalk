@@ -212,7 +212,7 @@ namespace LeakageDetector
                                 {
                                     // Just output a warning, this was probably caused by trampoline functions and similar constructions
                                     callLevel = 0;
-                                    Program.Log($"Warning: Indentation error in line {i}\n", Program.LogLevel.Warning);
+                                    //Program.Log($"Warning: Indentation error in line {i}\n", Program.LogLevel.Warning);
                                 }
                             }
                             else if(branchEntry.BranchType == BranchTypes.Jump)
